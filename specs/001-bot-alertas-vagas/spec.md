@@ -44,7 +44,9 @@ Uma vaga é elegível para notificação somente se, cumulativamente:
    usuário — linkedin.com/in/linsm7 —, que substituiu o conjunto anterior, `{React, TypeScript,
    Python, Full Stack}`; Python foi removido por não constar em nenhuma parte do perfil.)
 3. **Localização/modalidade**, uma das duas:
-   - Remoto (sem exigência de presença física em nenhuma cidade específica); OU
+   - Remoto **do Brasil** (sem exigência de presença física em nenhuma cidade específica, mas a
+     vaga precisa ser do Brasil — vaga remota de empresa/localização de outro país é descartada;
+     ver decisão de detecção de país estrangeiro no item 9); OU
    - Presencial/híbrido em Brasília (DF) ou Goiânia (GO) — incluindo região metropolitana.
 4. **Recência**: `data_publicacao` está dentro dos últimos 7 dias em relação ao momento da
    execução do pipeline. **Decisão registrada**: quando `data_publicacao` é desconhecida (`None`
@@ -146,3 +148,15 @@ comentadas no código correspondente):
 - **`vaga.schema.json` / `vaga-schema.md`**: o enum de `stack_detectada` foi atualizado junto
   (não estava na lista de arquivos citados na tarefa, mas é o contrato formal que a mudança de
   stack afeta diretamente).
+- **Remoto restrito ao Brasil — detecção de país estrangeiro**: implementada como lista não
+  exaustiva de termos de países estrangeiros mais comuns em resultados de busca "Remoto" no
+  LinkedIn (`core/filters.py::_PAISES_ESTRANGEIROS`), checados com fronteira de palavra (`\b`)
+  contra o texto normalizado de `localizacao` — nunca substring simples, para não confundir
+  cidade brasileira que contenha o termo como substring (ex.: "Peruíbe" não pode casar com
+  "Peru"). Mesma filosofia de aceitar por padrão quando ambíguo já usada nos critérios 4 e 6:
+  `localizacao` vazia, só "Remoto", ou mencionando "Brasil" é **aceita**; só é **rejeitada**
+  quando há sinal textual claro de país estrangeiro. A query de busca do LinkedIn
+  (`scrapers/linkedin.py::_LOCALIDADES_BUSCA`) foi mantida como `"Remoto"` (sem sufixo de país) —
+  ver comentário no próprio arquivo — porque o filtro em `core/filters.py` é a fonte obrigatória
+  da regra (Artigo IV da constituição: scraping de terceiro não é confiável), e alterar a query
+  de busca é uma otimização não obrigatória, com risco de reduzir a query sem necessidade.

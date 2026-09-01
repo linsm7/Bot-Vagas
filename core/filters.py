@@ -63,6 +63,41 @@ _LOCALIZACOES_ELEGIVEIS = (
 )
 _DF_REGEX = re.compile(r"\bdf\b")
 
+# Não exaustiva por design (Artigo I da constituição — simplicidade), mesmo princípio já usado em
+# _LOCALIZACOES_ELEGIVEIS e _EXIGENCIA_INGLES_PATTERNS: cobre os países que mais aparecem em
+# resultados de busca "Remoto" no LinkedIn (mercado americano, europeu e hispano-americano), não a
+# lista exaustiva de países do mundo — pode ser ampliada com bom senso conforme falsos negativos
+# aparecerem. Fronteira de palavra (`\b`) é usada (em vez de substring simples, como em
+# _LOCALIZACOES_ELEGIVEIS) porque alguns termos curtos colidiriam com nomes de cidades brasileiras
+# como substring — ex.: "peru" é substring de "Peruíbe" (cidade do litoral de SP) — o que geraria
+# falso positivo e descartaria vaga remota brasileira legítima.
+_PAISES_ESTRANGEIROS = (
+    "estados unidos", "eua", "united states", "usa", "us based",
+    "canada",
+    "reino unido", "united kingdom", "uk", "inglaterra", "england",
+    "irlanda", "ireland",
+    "portugal", "espanha", "spain", "franca", "france", "alemanha", "germany",
+    "italia", "italy", "holanda", "netherlands", "paises baixos",
+    "suica", "switzerland", "austria", "belgica", "belgium",
+    "dinamarca", "denmark", "suecia", "sweden", "noruega", "norway",
+    "finlandia", "finland", "polonia", "poland", "romenia", "romania",
+    "ucrania", "ukraine", "russia", "turquia", "turkey", "grecia", "greece",
+    "hungria", "hungary",
+    "argentina", "mexico", "chile", "colombia", "peru", "uruguai", "uruguay",
+    "paraguai", "paraguay", "bolivia", "equador", "ecuador", "venezuela",
+    "india", "china", "japao", "japan", "coreia do sul", "south korea",
+    "filipinas", "philippines", "indonesia", "malasia", "malaysia",
+    "vietna", "vietnam", "tailandia", "thailand", "paquistao", "pakistan",
+    "bangladesh",
+    "israel", "emirados arabes", "united arab emirates", "uae",
+    "arabia saudita", "saudi arabia", "africa do sul", "south africa",
+    "nigeria", "egito", "egypt", "marrocos", "morocco",
+    "australia", "nova zelandia", "new zealand", "singapura", "singapore",
+)
+_PAIS_ESTRANGEIRO_REGEX = re.compile(
+    r"\b(" + "|".join(re.escape(pais) for pais in _PAISES_ESTRANGEIROS) + r")\b"
+)
+
 
 def _normalizar_texto(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
@@ -76,10 +111,21 @@ def _localizacao_elegivel(localizacao: str) -> bool:
     return bool(_DF_REGEX.search(normalizado))
 
 
+def _localizacao_indica_pais_estrangeiro(localizacao: str) -> bool:
+    normalizado = _normalizar_texto(localizacao)
+    return bool(_PAIS_ESTRANGEIRO_REGEX.search(normalizado))
+
+
 def _modalidade_localizacao_elegivel(vaga: dict) -> bool:
     modalidade = vaga.get("modalidade")
     if modalidade == "remoto":
-        return True
+        # DECISÃO (spec.md §4, item 3): vaga remota só é elegível se for do Brasil. Mesma
+        # filosofia de `vaga_recente`/`nivel_elegivel` — quando `localizacao` é ambígua ou não
+        # traz nenhum sinal de país (vazia, só "Remoto", ou menciona "Brasil"), ACEITAR por
+        # padrão; só REJEITAR quando há sinal textual claro de país estrangeiro
+        # (`_PAISES_ESTRANGEIROS`). Ser restritivo demais aqui descartaria vaga remota brasileira
+        # legítima, o mesmo tipo de perda que a spec já evita para os demais critérios.
+        return not _localizacao_indica_pais_estrangeiro(vaga.get("localizacao") or "")
     if modalidade in ("presencial", "hibrido"):
         return _localizacao_elegivel(vaga.get("localizacao") or "")
     return False

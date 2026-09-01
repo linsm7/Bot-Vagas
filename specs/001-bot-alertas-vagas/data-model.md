@@ -58,7 +58,9 @@ narrativa e a justificativa de cada campo.
 
 Uma vaga só chega à etapa de checagem de duplicidade se, simultaneamente:
 - `stack_detectada` não está vazia, **e**
-- `modalidade == "remoto"` **ou** (`modalidade in ("presencial", "hibrido")` **e**
+- (`modalidade == "remoto"` **e** `localizacao` não indica claramente um país estrangeiro — ex.:
+  "United States", "Argentina", "Portugal"; `localizacao` vazia, só "Remoto", ou mencionando
+  "Brasil" continua elegível) **ou** (`modalidade in ("presencial", "hibrido")` **e**
   `localizacao` contém Brasília/DF ou Goiânia/GO — incluindo região metropolitana, ex.:
   Águas Claras, Taguatinga, Aparecida de Goiânia).
 

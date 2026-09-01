@@ -25,6 +25,13 @@ _DEFAULT_USER_AGENT = (
 # por não ter nenhuma evidência de uso no perfil. "Full Stack" é mantido por ser literalmente o
 # título de cargo do usuário.
 _TERMOS_BUSCA = ("React", "Next.js", "TypeScript", "Node.js", "Angular", "Full Stack")
+# DECISÃO (spec.md §4, item 3 / §9): "Remoto" foi mantido sem sufixo de país (ex.: não virou
+# "Remoto, Brasil") porque o campo `location` de busca do LinkedIn espera um lugar geográfico
+# real, não é documentado para aceitar "modalidade + país" combinados, e o comportamento seria
+# não confiável de qualquer forma (Artigo IV da constituição — scraping de terceiro não é fonte
+# de verdade). O filtro obrigatório e determinístico que garante "remoto só do Brasil" é
+# `core/filters.py::_modalidade_localizacao_elegivel`, aplicado a toda vaga coletada
+# independentemente do que a busca já vier filtrando na origem.
 _LOCALIDADES_BUSCA = ("Remoto", "Brasília", "Goiânia")
 
 _logger = logging.getLogger(__name__)
