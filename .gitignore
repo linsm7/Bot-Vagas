@@ -1,0 +1,28 @@
+# Segredos / configuração local
+.env
+
+# Ambiente virtual Python
+venv/
+.venv/
+env/
+
+# Bytecode / cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição / empacotamento
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Arquivos de IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# Sistema operacional
+.DS_Store

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bot-vagas.local/specs/001-bot-alertas-vagas/contracts/vaga.schema.json",
+  "title": "Vaga",
+  "description": "Contrato do dict padronizado produzido pela etapa de normalização, comum a todo scraper de fonte.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "titulo",
+    "empresa",
+    "localizacao",
+    "modalidade",
+    "url",
+    "fonte",
+    "stack_detectada",
+    "data_coleta",
+    "hash_unico"
+  ],
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Título da vaga como publicado pela fonte, sem alterações."
+    },
+    "empresa": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Nome da empresa contratante como exibido na listagem."
+    },
+    "localizacao": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Texto de localização como coletado, sem normalização (ex.: 'Brasília, DF, Brasil')."
+    },
+    "modalidade": {
+      "type": "string",
+      "enum": ["remoto", "presencial", "hibrido"],
+      "description": "Derivada pelo normalizador a partir de localizacao + texto da vaga."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "description": "Link direto para a vaga na fonte de origem."
+    },
+    "fonte": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identificador curto e estável da plataforma de origem (ex.: 'linkedin')."
+    },
+    "descricao": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Trecho/corpo da descrição, quando disponível sem requisição extra."
+    },
+    "stack_detectada": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["react", "nextjs", "typescript", "node", "angular", "fullstack"]
+      },
+      "uniqueItems": true,
+      "description": "Subconjunto de stacks detectado em título+descrição. Pode ser vazio."
+    },
+    "data_publicacao": {
+      "type": ["string", "null"],
+      "format": "date",
+      "default": null,
+      "description": "Data de publicação da vaga, quando a fonte expõe de forma confiável."
+    },
+    "data_coleta": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp (ISO 8601, com timezone) de quando o scraper coletou o dado."
+    },
+    "hash_unico": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256(fonte + '|' + url_normalizada), em hex minúsculo. Chave de deduplicação."
+    }
+  }
+}
