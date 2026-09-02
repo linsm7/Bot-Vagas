@@ -12,7 +12,7 @@
 | Scraping | `requests` + `BeautifulSoup4`, HTML estático (sem headless browser nesta fase) |
 | Notificação | Telegram Bot API via `requests` (chamada HTTP direta, sem SDK) |
 | Orquestração/agendamento | GitHub Actions, cron a cada 3 horas |
-| Fonte de scraping inicial | LinkedIn — busca pública de vagas (sem autenticação) |
+| Fontes de scraping | LinkedIn, Gupy, Indeed, Empregare — busca pública de vagas (sem autenticação) em cada uma |
 
 ## 2. Gate de simplicidade (Artigo I)
 
@@ -35,9 +35,9 @@
           │ dispara job
           ▼
 ┌────────────────────────────┐
-│ 1. Scraping                │  por fonte (inicia com LinkedIn público)
+│ 1. Scraping                │  por fonte (LinkedIn, Gupy, Indeed, Empregare)
 │    - busca por vaga        │  cada fonte roda isolada (Artigo IV):
-│    - extrai HTML bruto     │  exceção em uma fonte não interrompe as demais
+│    - extrai HTML/JSON bruto│  exceção em uma fonte não interrompe as demais
 └─────────┬───────────────────┘
           ▼
 ┌────────────────────────────┐
@@ -74,7 +74,7 @@ inverso, mais grave, de "vaga marcada como notificada mas o usuário nunca receb
 Motivo: o Artigo II (nenhuma vaga sem notificação real) pesa mais que o risco de, em uma falha
 rara entre envio e registro, reenviar a mesma vaga uma vez a mais.
 
-## 4. Estrutura de pastas planejada para a implementação (Fases futuras — NÃO criada nesta tarefa)
+## 4. Estrutura de pastas planejada para a implementação
 
 ```
 Bot-Vagas/
@@ -88,17 +88,20 @@ Bot-Vagas/
 │   ├── filters.py              # regras de elegibilidade (cargo/stack/localização)
 │   └── telegram.py             # integração com a API do Telegram
 ├── scrapers/
-│   ├── base.py                 # interface comum a todo scraper de fonte
-│   └── linkedin.py             # scraper da busca pública do LinkedIn
+│   ├── base.py                 # interface comum a todo scraper de fonte (Protocol)
+│   ├── linkedin.py             # scraper da busca pública do LinkedIn
+│   ├── gupy.py                 # scraper da API pública da Gupy
+│   ├── indeed.py               # scraper da busca pública do Indeed
+│   └── empregare.py            # scraper da API pública da Empregare
 ├── main.py                     # orquestra o pipeline fim a fim (seção 3)
 ├── init_db.sql                 # DDL gerado a partir de data-model.md (Fase 1)
 ├── requirements.txt
 └── .env.example
 ```
 
-Esta árvore é **especificação**, não implementação — nenhum desses arquivos foi criado nesta
-tarefa. Ela existe aqui para que a Fase 1 (implementação) não precise redecidir a organização do
-projeto.
+Esta árvore nasceu como especificação (Fase 0), antes de qualquer implementação, para que a
+Fase 1 não precisasse redecidir a organização do projeto — e já reflete a estrutura real depois
+de implementada (`scrapers/` com os 4 provedores atuais).
 
 ## 5. Documentos de apoio gerados junto com este plano
 

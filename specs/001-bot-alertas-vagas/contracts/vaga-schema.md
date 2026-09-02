@@ -1,9 +1,11 @@
 # Contrato: Dict Padronizado de Vaga
 
 Este é o contrato de interface entre **qualquer scraper de fonte** e o resto do pipeline
-(dedup, notificação, persistência). Todo scraper (`scrapers/linkedin.py` e futuros
-`scrapers/*.py`) deve produzir dicts que satisfaçam exatamente este contrato após a etapa de
-normalização — o resto do sistema não sabe, e não deve saber, de qual plataforma a vaga veio.
+(dedup, notificação, persistência). Todo scraper (hoje: `scrapers/linkedin.py`,
+`scrapers/gupy.py`, `scrapers/indeed.py`, `scrapers/empregare.py` — contrato documentado em
+`scrapers/base.py` — e qualquer `scrapers/*.py` futuro) deve produzir dicts que satisfaçam
+exatamente este contrato após a etapa de normalização — o resto do sistema não sabe, e não deve
+saber, de qual plataforma a vaga veio.
 
 O schema formal, em JSON Schema (Draft 2020-12), está em [`vaga.schema.json`](./vaga.schema.json)
 neste mesmo diretório e é a versão normativa. Esta página é a versão legível/anotada.

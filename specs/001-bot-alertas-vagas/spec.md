@@ -84,11 +84,12 @@ depois de notificada — ver item 5 e `data-model.md` §3).
 
 ## 5. Escopo desta fase (Fase 0)
 
-Esta spec, e os documentos irmãos em `specs/001-bot-alertas-vagas/`, cobrem **somente**
-planejamento e arquitetura. Não há código de produção associado a esta feature ainda. A
-plataforma de scraping inicial é o LinkedIn (busca pública, sem login). Outras plataformas
-podem ser adicionadas em iterações futuras — o contrato de dados definido aqui (`data-model.md`)
-foi desenhado para ser agnóstico à fonte, exatamente para permitir isso sem quebrar o schema.
+A plataforma de scraping inicial foi o LinkedIn (busca pública, sem login); três outras fontes —
+Gupy, Indeed e Empregare — foram adicionadas em seguida (todas por busca pública, sem login),
+seguindo o mesmo contrato de dados agnóstico à fonte definido em `data-model.md`. Toda execução
+do pipeline consulta as 4 fontes (`main.py::_PROVEDORES`); a falha de uma delas não impede as
+demais (Artigo IV). Outras plataformas podem ainda ser adicionadas no futuro sem quebrar o
+schema — é exatamente para isso que o contrato foi desenhado agnóstico à fonte desde o início.
 
 ## 6. Fora de escopo (explicitamente)
 
@@ -160,3 +161,42 @@ comentadas no código correspondente):
   ver comentário no próprio arquivo — porque o filtro em `core/filters.py` é a fonte obrigatória
   da regra (Artigo IV da constituição: scraping de terceiro não é confiável), e alterar a query
   de busca é uma otimização não obrigatória, com risco de reduzir a query sem necessidade.
+- **Integração de Gupy, Indeed e Empregare como novas fontes**: cada uma vira um módulo em
+  `scrapers/*.py` que segue o mesmo contrato dos demais (`scrapers/base.py::Scraper`, um
+  `Protocol` — sem herança, duck typing preservado, Artigo I). `main.py::executar_pipeline` passou
+  a iterar sobre os 4 provedores, com isolamento de falha por provedor em duas camadas: cada
+  scraper trata sua própria falha de rede/parsing internamente (devolve `[]`/`None`, nunca
+  propaga), e `main.py` tem uma segunda camada de try/except por provedor para qualquer erro
+  inesperado não coberto internamente (Artigo IV).
+  - **Gupy**: a busca agregada em `portal.gupy.io/job-search` é renderizada só no cliente (sem
+    dados na resposta HTML/SSR); o scraper usa a API JSON pública (sem autenticação) que a
+    alimenta, `employability-portal.gupy.io/api/v1/jobs` (descoberta via
+    `performance.getEntriesByType('resource')` no navegador — não documentada publicamente).
+    Diferente do LinkedIn, essa API já devolve `workplaceType`/`city`/`state`/`country`
+    explícitos por vaga (sem precisar inferir modalidade por palavra-chave) **e** a descrição
+    completa já na própria resposta de busca — `main.py` só chama
+    `buscar_descricao_completa` quando `vaga["descricao"]` ainda é `None`, o que não é o caso das
+    vagas da Gupy (evita uma segunda requisição desnecessária).
+  - **Indeed**: usa `requests`/`BeautifulSoup4` contra o HTML público de busca
+    (`br.indeed.com/jobs`), mesmo padrão do LinkedIn — mas o Indeed tem proteção anti-bot forte
+    (Cloudflare): uma requisição simples (sem executar JS) recebe **403 imediatamente**, mesmo
+    com um User-Agent de navegador real, validado manualmente durante a implementação. Um IP de
+    datacenter (runner do GitHub Actions) tem chance ainda maior de bloqueio. Tratado como falha
+    de rede normal (Artigo IV) — o scraper já teria esse comportamento pelo `except
+    requests.RequestException` existente, sem precisar de tratamento especial; documentado aqui
+    como limitação real conhecida, não hipotética.
+  - **Empregare**: mesmo padrão da Gupy — a busca em `empregare.com/pt-br/vagas` também é
+    client-side (o HTML inicial só tem um esqueleto de loading); o scraper usa a API JSON pública
+    que a alimenta, `empregare.com/api/pt-br/vagas/buscar-novo`. Ao contrário da Gupy, só devolve
+    um teaser truncado (`chamada`) na busca, não a descrição completa — segue o padrão de duas
+    requisições do LinkedIn/Indeed (`buscar_descricao_completa` busca a página individual da
+    vaga, que é renderizada no servidor). A API já devolve um rótulo de modalidade por vaga
+    (`trabalhoRemotoTexto`, ex. "Totalmente Remoto"/"Híbrido"/"Presencial") — mapeado por
+    substring do rótulo (não do código bruto do enum, ex. `RemotoFlexivel`), por ser mais estável
+    a mudanças futuras da API.
+- **`scrapers/base.py`**: criado como `typing.Protocol` (interface estrutural, sem herança nem
+  verificação em runtime) só para documentar num lugar único o contrato que os 4 scrapers já
+  seguem por convenção, e dar um tipo nomeado à lista de provedores em `main.py`. Não existiam
+  scrapers suficientes para justificar essa abstração antes (plan.md já previa o arquivo, mas
+  nunca foi criado enquanto só havia o LinkedIn); com 4 fontes reais, o custo de mantê-la é baixo
+  e reduz o risco de um quinto scraper futuro divergir do contrato sem perceber.

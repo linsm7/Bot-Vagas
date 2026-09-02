@@ -2,8 +2,9 @@
 
 Duas representações do mesmo conceito de domínio ("uma vaga elegível"):
 
-1. **Contrato do scraper** — o dict Python padronizado que qualquer scraper de fonte (LinkedIn
-   hoje, outras plataformas amanhã) deve produzir após a etapa de normalização.
+1. **Contrato do scraper** — o dict Python padronizado que qualquer scraper de fonte (hoje:
+   LinkedIn, Gupy, Indeed, Empregare — ver `scrapers/base.py`) deve produzir após a etapa de
+   normalização.
 2. **Schema do banco** — como esse dict é persistido no Neon Postgres, com as colunas extras que
    só existem no banco (chave primária, timestamps de controle).
 
@@ -19,9 +20,9 @@ narrativa e a justificativa de cada campo.
 | `titulo` | `str` | Sim | Título da vaga como publicado, sem alterações. |
 | `empresa` | `str` | Sim | Nome da empresa contratante, como exibido na listagem. |
 | `localizacao` | `str` | Sim | Texto de localização como coletado (ex.: `"Brasília, DF, Brasil"`, `"Remoto"`). Não normalizado — cru da fonte. |
-| `modalidade` | `str` (enum) | Sim | Um de `"remoto"`, `"presencial"`, `"hibrido"`. **Derivado** por `core/filters.py` a partir de `localizacao` + texto da vaga; nunca vem pronto da fonte. |
+| `modalidade` | `str` (enum) | Sim | Um de `"remoto"`, `"presencial"`, `"hibrido"`. Gupy e Empregare devolvem isso explicitamente na própria fonte (`workplaceType`/`trabalhoRemotoTexto`); LinkedIn e Indeed não expõem esse dado, então é **derivado** por `core/normalizer.py::_derivar_modalidade` a partir de `localizacao` + texto da vaga nesses dois casos. |
 | `url` | `str` | Sim | Link direto para a vaga. Usado (normalizado) no cálculo de `hash_unico`. |
-| `fonte` | `str` | Sim | Identificador curto e estável da plataforma de origem. Valor inicial: `"linkedin"`. |
+| `fonte` | `str` | Sim | Identificador curto e estável da plataforma de origem: `"linkedin"`, `"gupy"`, `"indeed"` ou `"empregare"`. |
 | `descricao` | `str \| None` | Não | Trecho/corpo da descrição da vaga, se disponível na página de listagem sem custo extra de requisição. |
 | `stack_detectada` | `list[str]` | Sim (pode ser lista vazia) | Subconjunto de `["react", "typescript", "python", "fullstack"]` detectado em título+descrição. Nunca `None` — lista vazia se nada detectado (mas nesse caso a vaga é descartada pelo filtro de elegibilidade, ver `spec.md` §4). |
 | `data_publicacao` | `date \| None` | Não | Data de publicação da vaga, quando a fonte expõe de forma confiável. |

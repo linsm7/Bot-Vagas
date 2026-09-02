@@ -4,9 +4,13 @@ import logging
 import os
 
 from core import database, filters, normalizer, telegram
-from scrapers import linkedin
+from scrapers import base, empregare, gupy, indeed, linkedin
 
 _logger = logging.getLogger(__name__)
+
+# Toda execução consulta os 4 provedores (spec.md §5) — cada um é um módulo simples que segue o
+# contrato documentado em scrapers/base.py::Scraper (duck typing, sem herança).
+_PROVEDORES: tuple[base.Scraper, ...] = (linkedin, gupy, indeed, empregare)
 
 
 def _configurar_logging() -> None:
@@ -17,14 +21,36 @@ def _configurar_logging() -> None:
     )
 
 
+def _coletar_vagas_de_um_provedor(provedor: base.Scraper) -> list[dict]:
+    # Cada scraper já trata suas próprias falhas de rede/parsing internamente e devolve `[]`
+    # nesses casos (ver scrapers/*.py). Este try/except é uma segunda camada de isolamento
+    # (Artigo IV): mesmo um erro inesperado *não previsto* dentro de um scraper (bug, mudança de
+    # formato que quebre algo fora dos try/except internos) não pode derrubar as outras fontes
+    # nem o pipeline inteiro.
+    try:
+        vagas = provedor.buscar_vagas()
+    except Exception:
+        _logger.exception(
+            "Falha inesperada ao coletar vagas de '%s'; fonte ignorada nesta execução",
+            provedor.FONTE,
+        )
+        return []
+    _logger.info("Coletadas %d vagas brutas de '%s'", len(vagas), provedor.FONTE)
+    return vagas
+
+
 def executar_pipeline() -> dict:
     # Conexão aberta antes do scraping para falhar rápido se DATABASE_URL não estiver
-    # configurada, em vez de gastar as requisições ao LinkedIn para descobrir isso só depois.
+    # configurada, em vez de gastar as requisições às fontes para descobrir isso só depois.
     conn = database.get_connection()
     try:
-        vagas_brutas = linkedin.buscar_vagas()
+        vagas_brutas: list[dict] = []
+        for provedor in _PROVEDORES:
+            vagas_brutas.extend(_coletar_vagas_de_um_provedor(provedor))
         total_coletadas = len(vagas_brutas)
-        _logger.info("Coletadas %d vagas brutas do LinkedIn", total_coletadas)
+        _logger.info(
+            "Coletadas %d vagas brutas no total, de %d provedores", total_coletadas, len(_PROVEDORES)
+        )
 
         # Etapa 1 — filtros baratos (spec.md §4, itens 2-4: stack, localização/modalidade,
         # recência), nenhum deles precisa da descrição completa da vaga. `filters.vaga_elegivel`
@@ -45,6 +71,8 @@ def executar_pipeline() -> dict:
             total_coletadas,
         )
 
+        provedores_por_fonte = {provedor.FONTE: provedor for provedor in _PROVEDORES}
+
         total_novas = 0
         total_elegiveis = 0
         total_notificadas = 0
@@ -52,20 +80,34 @@ def executar_pipeline() -> dict:
             # Checagem de novidade ANTES de buscar a descrição completa: `hash_unico` não
             # depende de descrição (core/normalizer.py::calcular_hash_unico), então uma vaga já
             # notificada em execução anterior é descartada aqui, sem gastar uma requisição extra
-            # ao LinkedIn só para verificar nível/inglês de algo que já seria pulado de qualquer
+            # à fonte só para verificar nível/inglês de algo que já seria pulado de qualquer
             # forma. Esta é a otimização de ordem exigida pela spec para as novas regras.
             if database.vaga_ja_existe(conn, vaga["hash_unico"]):
                 continue
             total_novas += 1
 
-            descricao_completa = linkedin.buscar_descricao_completa(vaga["url"])
-            if descricao_completa is None:
-                # Falha de rede/parsing ao buscar a página individual da vaga (já logada dentro
-                # de linkedin.buscar_descricao_completa). Sem a descrição não dá para avaliar
-                # nível/inglês com segurança, então a vaga é descartada *nesta* execução; como só
-                # é gravada no banco depois de notificada, ela será tentada de novo na próxima.
-                continue
-            vaga["descricao"] = descricao_completa
+            # Só busca a descrição completa se a fonte ainda não trouxe uma (ex.: a API da Gupy
+            # já devolve o texto completo na própria busca — ver scrapers/gupy.py::_extrair_vaga
+            # — então não há razão para gastar uma segunda requisição). LinkedIn/Indeed/Empregare
+            # sempre chegam aqui com `descricao is None`, pois só trazem teaser/título na busca.
+            if vaga.get("descricao") is None:
+                provedor = provedores_por_fonte[vaga["fonte"]]
+                try:
+                    descricao_completa = provedor.buscar_descricao_completa(vaga["url"])
+                except Exception:
+                    _logger.exception(
+                        "Falha inesperada ao buscar a descrição completa de '%s' (%s)",
+                        vaga["titulo"],
+                        vaga["url"],
+                    )
+                    descricao_completa = None
+                if descricao_completa is None:
+                    # Falha de rede/parsing ao buscar a página individual da vaga (já logada
+                    # dentro do scraper). Sem a descrição não dá para avaliar nível/inglês com
+                    # segurança, então a vaga é descartada *nesta* execução; como só é gravada no
+                    # banco depois de notificada, ela será tentada de novo na próxima.
+                    continue
+                vaga["descricao"] = descricao_completa
 
             # Segunda chamada a `vaga_elegivel`: agora com a descrição completa preenchida, os
             # critérios de nível (spec.md §4 item 6) e inglês (item 7) são avaliados de verdade.
